@@ -1,0 +1,60 @@
+# This .yml-file configures the CI pipeline of the Gitlab repository which mirrors the GitHub access repository.
+
+# Definition of the 3 sequential stages of the CI pipeline
+stages:
+- structure
+- new_additions
+- verification
+
+# Definition of the "Static Application Security Testing" which is recommended by Gitlab.
+sast:
+  stage: structure
+include:
+- template: Security/SAST.gitlab-ci.yml
+
+# This stage checks the structure of the directories and checks by utilizing a reference hash
+# if the verified curves and proofs in the respective directory have been changed manually.
+check_directories:
+  stage: structure
+  before_script:
+    - apk add --no-cache --upgrade git # Install Git
+  image: alpine:latest # Runtime environment is a Linux alpine docker container
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event" # Stage will only be executed in pull request
+  script:
+    - git clone https://oauth2:${ACCESS_GITHUB_TOKEN}@github.com/zekure-hacker/SECUER_ceremony.git
+    - git clone https://oauth2:${AUTOMATION_ACCESS_TOKEN}@git.fim.uni-passau.de/hacker/secuer-ceremony-secure.git
+    - sh secuer-ceremony-secure/test_directories.sh
+
+# This stage checks the denomination and plausibility of the provided additions "curve*.txt" and "proof*.txt".!reference:
+# The number has to match with the latest verified curve and proof in the respective directories and
+# the curve addition has to start at the latest verified curve - the "tip curve".
+check_additions:
+  stage: new_additions
+  before_script:
+    - apk add --no-cache --upgrade git # Install Git
+  image: alpine:latest # Runtime environment is a Linux alpine docker container
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event" # Stage will only be executed in pull request
+  script:
+    - git clone https://oauth2:${AUTOMATION_ACCESS_TOKEN}@git.fim.uni-passau.de/hacker/secuer-ceremony-secure.git
+    - git clone https://oauth2:${ACCESS_GITHUB_TOKEN}@github.com/zekure-hacker/SECUER_ceremony.git
+    - sh secuer-ceremony-secure/test_additions.sh
+
+# This stage checks the correctness of the provided proof and curve by utilizing
+# a reliable instance of the verification application.
+check_verify:
+  stage: verification
+  before_script:
+    - apk add --no-cache --upgrade git # Install Git
+    - apk add --no-cache --upgrade make # Install CMake
+    - apk add --no-cache --upgrade clang # Install clang
+  image: alpine:latest # Runtime environment is a Linux alpine docker container
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event" # Stage will only be executed in pull request
+  script:
+    - git clone https://oauth2:${AUTOMATION_ACCESS_TOKEN}@git.fim.uni-passau.de/hacker/secuer-ceremony-secure.git
+    - git clone https://oauth2:${ACCESS_GITHUB_TOKEN}@github.com/zekure-hacker/SECUER_ceremony.git
+    - sh secuer-ceremony-secure/test_verify.sh
+
+
